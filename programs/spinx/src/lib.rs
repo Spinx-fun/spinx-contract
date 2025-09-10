@@ -114,7 +114,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         space = 8 + 32 + 32 + 8 + 8 + 24 + 32 * 4 + 8 * 5,
-        seeds = [GLOBAL_AUTHORITY_SEED.as_ref()],
+        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
         bump,
         payer = admin
     )]
@@ -137,7 +137,7 @@ pub struct SetFee <'info> {
 
     #[account(
         mut,
-        seeds = [GLOBAL_AUTHORITY_SEED.as_ref()],
+        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
         bump
     )]
     pub global_data: Box<Account<'info, GlobalData>>,
@@ -153,7 +153,7 @@ pub struct CreateCoinflip<'info> {
 
     #[account(
         mut,
-        seeds = [GLOBAL_AUTHORITY_SEED.as_ref()],
+        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
         bump
     )]
     pub global_data: Box<Account<'info, GlobalData>>,
@@ -161,7 +161,7 @@ pub struct CreateCoinflip<'info> {
     #[account(
         init,
         space = 8 + 8 + 1 + 32 + 8 + 80 + 80,
-        seeds = [COINFLIP_SEED.as_ref(), admin.to_account_info().key.as_ref(), ts.to_le_bytes().as_ref()],
+        seeds = [COINFLIP_SEED.as_bytes(), admin.to_account_info().key.as_ref(), ts.to_le_bytes().as_ref()],
         bump,
         payer = admin
     )]
@@ -169,17 +169,17 @@ pub struct CreateCoinflip<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_SEED.as_ref()],
+        seeds = [VAULT_SEED.as_bytes()],
         bump,
     )]
     /// CHECK: This is not dangerous because we don't read or write from this account
     pub sol_vault: AccountInfo<'info>,
 
     #[account(mut)]
-    pub token_account: Box<Account<'info, TokenAccount>>,
+    pub token_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
-    pub spl_escrow: Box<Account<'info, TokenAccount>>,
+    pub spl_escrow: Account<'info, TokenAccount>,
 
     /// CHECK:` doc comment explaining why no checks through types are necessary.
     pub system_program: Program<'info, System>,
@@ -193,7 +193,7 @@ pub struct JoinCoinflip<'info> {
 
     #[account(
         mut,
-        seeds = [GLOBAL_AUTHORITY_SEED.as_ref()],
+        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
         bump
     )]
     pub global_data: Box<Account<'info, GlobalData>>,
@@ -203,17 +203,17 @@ pub struct JoinCoinflip<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_SEED.as_ref()],
+        seeds = [VAULT_SEED.as_bytes()],
         bump,
     )]
     /// CHECK: This is not dangerous because we don't read or write from this account
     pub sol_vault: AccountInfo<'info>,
 
     #[account(mut)]
-    pub token_account: Box<Account<'info, TokenAccount>>,
+    pub token_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
-    pub spl_escrow: Box<Account<'info, TokenAccount>>,
+    pub spl_escrow: Account<'info, TokenAccount>,
     
     /// CHECK:` doc comment explaining why no checks through types are necessary.
     pub system_program: Program<'info, System>,
