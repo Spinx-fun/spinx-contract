@@ -1,17 +1,19 @@
+[toolchain]
+package_manager = "yarn"
+
 [features]
-seeds = false
+resolution = true
 skip-lint = false
 
-[programs.localnet]
-spinx = "5eRgNNcptvjHxXBVrMBzXEx8QxB79vbL94DJCNgLiMcV"
+[programs.devnet]
+spinx_contract = "GjbMbmaKX8jB5TrH91AZ6xZwFPeq7fgPkZVDhjGcBUdd"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
-client = "yarn run ts-node client/*.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
