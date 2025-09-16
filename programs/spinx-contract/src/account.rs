@@ -17,7 +17,7 @@ pub struct GlobalData {
 pub struct CoinflipPool {
     pub pool_id: u64, //8
     pub start_ts: u64, // 8
-    pub claimed: u8, // 1
+    pub bump: u8, // 1
     pub winner: Pubkey, // 32
     pub pool_amount: u64, // 8
     pub creator_player: Pubkey, // 32

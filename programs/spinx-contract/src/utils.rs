@@ -3,8 +3,8 @@ use anchor_lang::solana_program::{
     program::invoke
 };
 
-pub const SPINX_TOKEN_ADDRESS: &str = "8Zd8FKrY2TMcRAUqPgFYXfasvkL4z8V6HA2KijHgAt1Z";
-pub const TREASURY_WALLET: &str = "Hsz6954x56Ufk9BDYhXhdMMmWXu9Fwmqvd87XB9nk2Hd";
+pub const SPINX_TOKEN_ADDRESS: &str = "EY4wsByMUEudm4FRC2nTFfmiWFCMdhJx5j69ZTfQ8mz6";
+pub const TREASURY_WALLET: &str = "EAoVpYvC3jNp1F9nym6KGXWGvyBw3PpNKWY4Dd3D8aao";
 pub const COINFLIP_FEE: u64 = 1000000;
 pub const GLOBAL_AUTHORITY_SEED: &str = "global-authority";
 pub const VAULT_SEED: &str = "vault-authority";

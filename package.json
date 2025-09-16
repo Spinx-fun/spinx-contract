@@ -3,14 +3,16 @@
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "test": "anchor test"
+    "test": "anchor test",
+    "onlytest": "anchor test --skip-deploy"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "assert": "^2.1.0",
-    "bn.js": "^5.2.2"
+    "bn.js": "^5.2.2",
+    "dotenv": "^17.2.2"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",

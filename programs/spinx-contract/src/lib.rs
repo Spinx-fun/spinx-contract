@@ -14,7 +14,7 @@ use error::*;
 
 // This is your program's public key and it will update
 // automatically when you build the project.
-declare_id!("5eRgNNcptvjHxXBVrMBzXEx8QxB79vbL94DJCNgLiMcV");
+declare_id!("GjbMbmaKX8jB5TrH91AZ6xZwFPeq7fgPkZVDhjGcBUdd");
 
 #[program]
 pub mod spinx {
@@ -39,7 +39,7 @@ pub mod spinx {
         Ok(())
     }
 
-    pub fn create_coinflip(ctx: Context<CreateCoinflip>, ts: u64, set_number: u64, amount: u64) -> Result<()> {
+    pub fn create_coinflip(ctx: Context<CreateCoinflip>, set_number: u64, amount: u64) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
         let global_data = &mut ctx.accounts.global_data;
         
@@ -55,42 +55,45 @@ pub mod spinx {
 
         // Transfer amount SPL token to spl_escrow
         let cpi_accounts = Transfer {
-            from: ctx.accounts.token_account.to_account_info(),
+            from: ctx.accounts.creator_ata.to_account_info(),
             to: ctx.accounts.spl_escrow.to_account_info(),
             authority: ctx.accounts.creator.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(ctx.accounts.token_account.to_account_info(), cpi_accounts);
+        let cpi_ctx = CpiContext::new(ctx.accounts.creator_ata.to_account_info(), cpi_accounts);
         token::transfer(cpi_ctx, amount)?;
+
+        // Generate the random number
+        let timestamp = Clock::get()?.unix_timestamp;
 
         // Assign the current pool_id to this coinflip pool
         coinflip_pool.pool_id = global_data.next_pool_id;
 
         // Increment the next_pool_id for the next coinflip
         global_data.next_pool_id += 1;
-        
-        coinflip_pool.start_ts = ts;
+
+        coinflip_pool.start_ts = timestamp as u64;
         coinflip_pool.creator_player = ctx.accounts.creator.key();
         coinflip_pool.creator_amount = amount;
-        coinflip_pool.creator_ata = ctx.accounts.creator_token_account.key();
+        coinflip_pool.creator_ata = ctx.accounts.creator_ata.key();
         coinflip_pool.creator_set_number = set_number;
         coinflip_pool.pool_amount = amount;
+        coinflip_pool.bump = ctx.bumps.coinflip_pool;
 
         Ok(())
     }
 
-    pub fn join_coinflip(ctx: Context<JoinCoinflip>, set_number: u64, amount: u64) -> Result<()> {
+    pub fn join_coinflip(ctx: Context<JoinCoinflip>, pool_id: u64, set_number: u64, amount: u64) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;        
         let global_data = &mut ctx.accounts.global_data;
         let fee = global_data.coinflip_fee;
         
-        require!(coinflip_pool.claimed == 0, SpinXError::AlreadyClaimed);
         require!(coinflip_pool.winner == Pubkey::default(), SpinXError::AlreadyDrawn);
         require!(coinflip_pool.creator_player != ctx.accounts.joiner.key(), SpinXError::InvalidJoiner);
         require!(coinflip_pool.creator_set_number != set_number, SpinXError::InvalidNumber);
 
         // Transfer amount SPL token to spl_escrow
         let cpi_accounts = Transfer {
-            from: ctx.accounts.token_account.to_account_info(),
+            from: ctx.accounts.joiner_ata.to_account_info(),
             to: ctx.accounts.spl_escrow.to_account_info(),
             authority: ctx.accounts.joiner.to_account_info(),
         };
@@ -124,26 +127,24 @@ pub mod spinx {
 
         coinflip_pool.joiner_player = ctx.accounts.joiner.key();
         coinflip_pool.joiner_amount = amount;
-        coinflip_pool.joiner_ata = ctx.accounts.joiner_token_account.key();
+        coinflip_pool.joiner_ata = ctx.accounts.joiner_ata.key();
         coinflip_pool.joiner_set_number = set_number;
         coinflip_pool.pool_amount += amount;
 
-        
+        let seeds = &[
+                COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
+                &[coinflip_pool.bump],
+            ];
+        let signer = &[&seeds[..]]; 
 
         if mul % 2 == set_number { // Win
             coinflip_pool.winner = coinflip_pool.joiner_player;
 
             let cpi_accounts = Transfer {
                 from: ctx.accounts.spl_escrow.to_account_info(),
-                to: ctx.accounts.joiner_token_account.to_account_info(),
-                authority: ctx.accounts.sol_vault.to_account_info(),
+                to: ctx.accounts.joiner_ata.to_account_info(),
+                authority: coinflip_pool.to_account_info(),
             };
-
-            let seeds = &[
-                COINFLIP_SEED.as_bytes(), coinflip_pool.creator_player.as_ref(), &coinflip_pool.start_ts.to_le_bytes(),
-                &[ctx.bumps.global_data],
-            ];
-            let signer = &[&seeds[..]]; 
             
             let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer);
             token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;   
@@ -154,14 +155,8 @@ pub mod spinx {
             let cpi_accounts = Transfer {
                 from: ctx.accounts.spl_escrow.to_account_info(),
                 to: ctx.accounts.creator_ata.to_account_info(),
-                authority: ctx.accounts.sol_vault.to_account_info(),
+                authority: coinflip_pool.to_account_info(),
             };
-
-            let seeds = &[
-                COINFLIP_SEED.as_bytes(), coinflip_pool.creator_player.as_ref(), &coinflip_pool.start_ts.to_le_bytes(),
-                &[ctx.bumps.global_data],
-            ];
-            let signer = &[&seeds[..]];
 
             let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer);
             token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;
@@ -210,9 +205,6 @@ pub struct SetFee <'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(
-    ts: u64
-)]
 pub struct CreateCoinflip<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -231,15 +223,15 @@ pub struct CreateCoinflip<'info> {
         associated_token::mint = spinx_mint,
         associated_token::authority = creator
     )]
-    pub creator_token_account: Account<'info, TokenAccount>,
+    pub creator_ata: Account<'info, TokenAccount>,
 
     #[account(address = global_data.spinx_token)]
     pub spinx_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init,
-        space = 8 + 8 + 1 + 32 + 8 + 80 + 80,
-        seeds = [COINFLIP_SEED.as_bytes(), creator.to_account_info().key.as_ref(), ts.to_le_bytes().as_ref()],
+        space = 8 + 8 + 1 + 32 + 8 + 80 + 80 + 8,
+        seeds = [COINFLIP_SEED.as_bytes(), global_data.next_pool_id.to_le_bytes().as_ref()],
         bump,
         payer = creator
     )]
@@ -252,9 +244,6 @@ pub struct CreateCoinflip<'info> {
     )]
     /// CHECK: This is not dangerous because we don't read or write from this account
     pub sol_vault: AccountInfo<'info>,
-
-    #[account(mut)]
-    pub token_account: Account<'info, TokenAccount>,
 
     #[account(
         init,
@@ -271,6 +260,9 @@ pub struct CreateCoinflip<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(
+    pool_id: u64
+)]
 pub struct JoinCoinflip<'info> {
     #[account(mut)]
     pub joiner: Signer<'info>,
@@ -289,16 +281,20 @@ pub struct JoinCoinflip<'info> {
         associated_token::mint = spinx_mint,
         associated_token::authority = joiner
     )]
-    pub joiner_token_account: Account<'info, TokenAccount>,
+    pub joiner_ata: Account<'info, TokenAccount>,
 
     #[account(address = global_data.spinx_token)]
     pub spinx_mint: Box<Account<'info, Mint>>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [COINFLIP_SEED.as_bytes(), pool_id.to_le_bytes().as_ref()],
+        bump
+    )]
     pub coinflip_pool: Account<'info, CoinflipPool>,
 
     #[account(address = coinflip_pool.creator_ata)]
-    pub creator_ata: Box<Account<'info, Mint>>,
+    pub creator_ata: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -307,9 +303,6 @@ pub struct JoinCoinflip<'info> {
     )]
     /// CHECK: This is not dangerous because we don't read or write from this account
     pub sol_vault: AccountInfo<'info>,
-
-    #[account(mut)]
-    pub token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
