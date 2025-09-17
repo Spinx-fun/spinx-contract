@@ -1,6 +1,17 @@
 use anchor_lang::prelude::*;
 
-// Here are the account structures
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+pub enum PoolStatus {
+    Waiting,
+    Processing,
+    Finished
+}
+
+impl<> Default for PoolStatus {
+    fn default() -> Self {
+        return PoolStatus::Waiting
+    } 
+}
 
 // Default Account structures here
 #[account]
@@ -27,5 +38,7 @@ pub struct CoinflipPool {
     pub joiner_player: Pubkey, // 32
     pub joiner_ata: Pubkey, //32
     pub joiner_amount: u64, // 8
-    pub joiner_set_number: u64 // 8
+    pub joiner_set_number: u64, // 8
+    pub force: [u8; 32],
+    pub status: PoolStatus
 }

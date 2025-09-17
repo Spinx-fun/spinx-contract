@@ -4,6 +4,7 @@ use anchor_spl::{
     token::{self, Mint, Token, TokenAccount, Transfer},
 };
 
+mod misc;
 pub mod account;
 pub mod utils;
 pub mod error;
@@ -12,12 +13,21 @@ use account::*;
 use utils::*;
 use error::*;
 
+use orao_solana_vrf::program::OraoVrf;
+use orao_solana_vrf::state::NetworkState;
+use orao_solana_vrf::CONFIG_ACCOUNT_SEED;
+use orao_solana_vrf::RANDOMNESS_ACCOUNT_SEED;
+
 // This is your program's public key and it will update
 // automatically when you build the project.
 declare_id!("GjbMbmaKX8jB5TrH91AZ6xZwFPeq7fgPkZVDhjGcBUdd");
 
 #[program]
 pub mod spinx {
+    use orao_solana_vrf::cpi::accounts::RequestV2;
+
+    use self::misc::current_state;
+
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
@@ -82,7 +92,7 @@ pub mod spinx {
         Ok(())
     }
 
-    pub fn join_coinflip(ctx: Context<JoinCoinflip>, pool_id: u64, set_number: u64, amount: u64) -> Result<()> {
+    pub fn join_coinflip(ctx: Context<JoinCoinflip>, pool_id: u64, force: [u8; 32], set_number: u64, amount: u64) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;        
         let global_data = &mut ctx.accounts.global_data;
         let fee = global_data.coinflip_fee;
@@ -107,29 +117,42 @@ pub mod spinx {
             ctx.accounts.system_program.to_account_info().clone(), 
             fee
         )?;
-    
-        // Generate the random number
-        let timestamp = Clock::get()?.unix_timestamp;
-        // Get the random number of the entrant amount
-        let (joiner_address, _bump) = Pubkey::find_program_address(
-            &[
-                RANDOM_SEED.as_bytes(),
-                timestamp.to_string().as_bytes(),
-            ],
-            &spinx::ID,
-        );
-        let char_vec: Vec<char> = joiner_address.to_string().chars().collect();
-        let mut mul = 1;
-        for i in 0..7 {
-            mul *= u64::from(char_vec[i as usize]);
-        }
-        mul += u64::from(char_vec[7]);
+        
+        // Request randomness.
+        let cpi_program = ctx.accounts.vrf.to_account_info();
+        let cpi_accounts = RequestV2 {
+            payer: ctx.accounts.joiner.to_account_info(),
+            network_state: ctx.accounts.config.to_account_info(),
+            treasury: ctx.accounts.treasury.to_account_info(),
+            request: ctx.accounts.random.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+        };
 
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        orao_solana_vrf::cpi::request_v2(cpi_ctx, force)?;
+        
         coinflip_pool.joiner_player = ctx.accounts.joiner.key();
         coinflip_pool.joiner_amount = amount;
         coinflip_pool.joiner_ata = ctx.accounts.joiner_ata.key();
         coinflip_pool.joiner_set_number = set_number;
         coinflip_pool.pool_amount += amount;
+        coinflip_pool.force = force;
+        coinflip_pool.status = PoolStatus::Processing;        
+
+        Ok(())
+    }
+
+    pub fn result_coinflip(ctx: Context<ResultCoinflip>, pool_id: u64, force: [u8; 32]) -> Result<()> {
+        let coinflip_pool = &mut ctx.accounts.coinflip_pool;
+        let rand_acc = crate::misc::get_account_data(&ctx.accounts.random)?;
+
+        let randomness = current_state(&rand_acc);
+        if randomness == 0 {
+            return err!(SpinXError::StillProcessing)
+        }
+        let result = randomness % 2;
+
+        msg!("VRF result is: {}", randomness);
 
         let seeds = &[
                 COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
@@ -137,7 +160,7 @@ pub mod spinx {
             ];
         let signer = &[&seeds[..]]; 
 
-        if mul % 2 == set_number { // Win
+        if result == coinflip_pool.joiner_set_number { // Win Joiner
             coinflip_pool.winner = coinflip_pool.joiner_player;
 
             let cpi_accounts = Transfer {
@@ -149,7 +172,7 @@ pub mod spinx {
             let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer);
             token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;   
 
-        } else { // Lost
+        } else { // Win Creator
             coinflip_pool.winner = coinflip_pool.creator_player;
 
             let cpi_accounts = Transfer {
@@ -162,9 +185,14 @@ pub mod spinx {
             token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;
         }
 
+        msg!("Coinflip game in room {} has concluded, the winner is {}", pool_id, coinflip_pool.winner.to_string());
+
+        coinflip_pool.status = PoolStatus::Finished;
+
         Ok(())
     }
 }
+
 
 
 #[derive(Accounts)]
@@ -174,7 +202,7 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        space = 8 + 32 + 32 + 8 + 8 + 24 + 32 * 4 + 8 * 5,
+        space = 8 + std::mem::size_of::<GlobalData>(),
         seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
         bump,
         payer = admin
@@ -230,7 +258,7 @@ pub struct CreateCoinflip<'info> {
 
     #[account(
         init,
-        space = 8 + 8 + 1 + 32 + 8 + 80 + 80 + 8,
+        space = 8 + std::mem::size_of::<CoinflipPool>(),
         seeds = [COINFLIP_SEED.as_bytes(), global_data.next_pool_id.to_le_bytes().as_ref()],
         bump,
         payer = creator
@@ -261,7 +289,7 @@ pub struct CreateCoinflip<'info> {
 
 #[derive(Accounts)]
 #[instruction(
-    pool_id: u64
+    pool_id: u64, force: [u8; 32]
 )]
 pub struct JoinCoinflip<'info> {
     #[account(mut)]
@@ -293,9 +321,6 @@ pub struct JoinCoinflip<'info> {
     )]
     pub coinflip_pool: Account<'info, CoinflipPool>,
 
-    #[account(address = coinflip_pool.creator_ata)]
-    pub creator_ata: Box<Account<'info, TokenAccount>>,
-
     #[account(
         mut,
         seeds = [VAULT_SEED.as_bytes()],
@@ -310,9 +335,89 @@ pub struct JoinCoinflip<'info> {
         associated_token::authority = coinflip_pool
     )]
     pub spl_escrow: Account<'info, TokenAccount>,
+
+    /// CHECK:
+    #[account(
+        mut,
+        seeds = [RANDOMNESS_ACCOUNT_SEED, &force],
+        bump,
+        seeds::program = orao_solana_vrf::ID
+    )]
+    pub random: AccountInfo<'info>,
+    /// CHECK:
+    #[account(mut)]
+    pub treasury: AccountInfo<'info>,
+    
+    #[account(
+        mut,
+        seeds = [CONFIG_ACCOUNT_SEED],
+        bump,
+        seeds::program = orao_solana_vrf::ID
+    )]
+    pub config: Account<'info, NetworkState>,
     
     /// CHECK:` doc comment explaining why no checks through types are necessary.
+    pub vrf: Program<'info, OraoVrf>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(pool_id: u64, force: [u8; 32])]
+pub struct ResultCoinflip<'info> {
+
+    #[account(
+        mut,
+        seeds = [COINFLIP_SEED.as_bytes(), pool_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub coinflip_pool: Account<'info, CoinflipPool>,
+
+    #[account(
+        mut,
+        associated_token::mint = spinx_mint,
+        associated_token::authority = coinflip_pool
+    )]
+    pub spl_escrow: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub spinx_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = spinx_mint,
+        associated_token::authority = coinflip_pool.creator_player
+    )]
+    pub creator_ata: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = spinx_mint,
+        associated_token::authority = coinflip_pool.joiner_player
+    )]
+    pub joiner_ata: Box<Account<'info, TokenAccount>>,
+
+    /// CHECK: Treasury
+    #[account(mut)]
+    pub treasury: AccountInfo<'info>,
+    /// CHECK: Randomness
+    #[account(
+        mut,
+        seeds = [RANDOMNESS_ACCOUNT_SEED, &force],
+        bump,
+        seeds::program = orao_solana_vrf::ID
+    )]
+    pub random: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [CONFIG_ACCOUNT_SEED.as_ref()],
+        bump,
+        seeds::program = orao_solana_vrf::ID
+    )]
+    pub config: Account<'info, NetworkState>,
+    pub vrf: Program<'info, OraoVrf>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }

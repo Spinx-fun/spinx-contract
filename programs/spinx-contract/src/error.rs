@@ -66,4 +66,7 @@ pub enum SpinXError {
 
     #[msg("Insufficient funds")]
     InsufficientFunds,
+
+    #[msg("Randomness is still being fulfilled")]
+    StillProcessing
 }

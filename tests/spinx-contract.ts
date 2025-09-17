@@ -26,6 +26,8 @@ import * as bs58 from "bs58";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import nacl from "tweetnacl";
+import { networkStateAccountAddress, Orao, randomnessAccountAddress } from "@orao-network/solana-vrf";
 
 // Load environment variables
 dotenv.config();
@@ -95,6 +97,10 @@ describe("spinx", () => {
     let spinxMint: PublicKey;
     let creatorTokenAccount: PublicKey;
     let joinerTokenAccount: PublicKey;
+
+    const vrf = new Orao(anchor.getProvider() as any);    
+    let force = Keypair.generate().publicKey;
+    let seed = nacl.randomBytes(32);
 
     // PDAs
     let globalDataBump: number;
@@ -304,75 +310,75 @@ describe("spinx", () => {
         }
     });
 
-      it("Creates a coinflip with pool_id", async () => {
-        const globalDataAccount = await program.account.globalData.fetch(globalData);
-        // Get a new timestamp for a fresh coinflip
-        const pool_id = new BN(globalDataAccount.nextPoolId.toNumber());
+    it("Creates a coinflip with pool_id", async () => {
+    const globalDataAccount = await program.account.globalData.fetch(globalData);
+    // Get a new timestamp for a fresh coinflip
+    const pool_id = new BN(globalDataAccount.nextPoolId.toNumber());
 
-        // Find the coinflip PDA
-        const [coinflipPool] = await PublicKey.findProgramAddressSync(
-          [
-            Buffer.from(COINFLIP_SEED),
-            pool_id.toArrayLike(Buffer, "le", 8),
-          ],
-          program.programId
-        );
+    // Find the coinflip PDA
+    const [coinflipPool] = await PublicKey.findProgramAddressSync(
+        [
+        Buffer.from(COINFLIP_SEED),
+        pool_id.toArrayLike(Buffer, "le", 8),
+        ],
+        program.programId
+    );
 
-        // Find the SPL escrow account
-        const splEscrow = await getAssociatedTokenAddress(
-          spinxMint,
-          coinflipPool,
-          true
-        );
+    // Find the SPL escrow account
+    const splEscrow = await getAssociatedTokenAddress(
+        spinxMint,
+        coinflipPool,
+        true
+    );
 
-        try {
-          // Get the current next_pool_id
-          const globalDataBefore = await program.account.globalData.fetch(globalData);
-          const expectedPoolId = globalDataBefore.nextPoolId;
-          console.log("Expected pool_id for new coinflip:", expectedPoolId.toString());
+    try {
+        // Get the current next_pool_id
+        const globalDataBefore = await program.account.globalData.fetch(globalData);
+        const expectedPoolId = globalDataBefore.nextPoolId;
+        console.log("Expected pool_id for new coinflip:", expectedPoolId.toString());
 
-          // Create the coinflip
-          const tx = await program.methods
-            .createCoinflip(setNumber, coinflipAmount)
-            .accounts({
-              creator: creatorKeypair.publicKey,
-              globalData: globalData,
-              creatorAta: creatorTokenAccount,
-              spinxMint: spinxMint,
-              coinflipPool: coinflipPool,
-              solVault: solVault,
-              splEscrow: splEscrow,
-              associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-              systemProgram: SystemProgram.programId,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            })
-            .rpc();
+        // Create the coinflip
+        const tx = await program.methods
+        .createCoinflip(setNumber, coinflipAmount)
+        .accounts({
+            creator: creatorKeypair.publicKey,
+            globalData: globalData,
+            creatorAta: creatorTokenAccount,
+            spinxMint: spinxMint,
+            coinflipPool: coinflipPool,
+            solVault: solVault,
+            splEscrow: splEscrow,
+            associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .rpc();
 
-          console.log("Create coinflip transaction signature", tx);
+        console.log("Create coinflip transaction signature", tx);
 
-          // Fetch the coinflip pool account
-          const coinflipPoolAccount = await program.account.coinflipPool.fetch(coinflipPool);
+        // Fetch the coinflip pool account
+        const coinflipPoolAccount = await program.account.coinflipPool.fetch(coinflipPool);
 
-          // Verify the coinflip pool was created correctly
-          assert.equal(coinflipPoolAccount.creatorPlayer.toString(), creatorKeypair.publicKey.toString());
-          assert.equal(coinflipPoolAccount.creatorAmount.toString(), coinflipAmount.toString());
-          assert.equal(coinflipPoolAccount.creatorSetNumber.toString(), setNumber.toString());
-          assert.equal(coinflipPoolAccount.poolAmount.toString(), coinflipAmount.toString());
-          assert.equal(coinflipPoolAccount.poolId.toString(), expectedPoolId.toString(), 
-            `Coinflip should have pool_id = ${expectedPoolId}`);
+        // Verify the coinflip pool was created correctly
+        assert.equal(coinflipPoolAccount.creatorPlayer.toString(), creatorKeypair.publicKey.toString());
+        assert.equal(coinflipPoolAccount.creatorAmount.toString(), coinflipAmount.toString());
+        assert.equal(coinflipPoolAccount.creatorSetNumber.toString(), setNumber.toString());
+        assert.equal(coinflipPoolAccount.poolAmount.toString(), coinflipAmount.toString());
+        assert.equal(coinflipPoolAccount.poolId.toString(), expectedPoolId.toString(), 
+        `Coinflip should have pool_id = ${expectedPoolId}`);
 
-          // Verify the global data was updated correctly
-          const globalDataAfter = await program.account.globalData.fetch(globalData);
-          assert.equal(globalDataAfter.nextPoolId.toString(), (expectedPoolId.toNumber() + 1).toString(), 
-            `Next pool ID should be incremented to ${expectedPoolId.toNumber() + 1}`);
+        // Verify the global data was updated correctly
+        const globalDataAfter = await program.account.globalData.fetch(globalData);
+        assert.equal(globalDataAfter.nextPoolId.toString(), (expectedPoolId.toNumber() + 1).toString(), 
+        `Next pool ID should be incremented to ${expectedPoolId.toNumber() + 1}`);
 
-          console.log("Coinflip created successfully with pool_id:", coinflipPoolAccount.poolId.toString());
-          console.log("Next pool_id is now:", globalDataAfter.nextPoolId.toString());
-        } catch (error) {
-          console.error("Error creating coinflip:", error);
-          throw error;
-        }
-      });
+        console.log("Coinflip created successfully with pool_id:", coinflipPoolAccount.poolId.toString());
+        console.log("Next pool_id is now:", globalDataAfter.nextPoolId.toString());
+    } catch (error) {
+        console.error("Error creating coinflip:", error);
+        throw error;
+    }
+    });
 
       it("Creates a second coinflip with incremented pool_id", async () => {
         const globalDataAccount = await program.account.globalData.fetch(globalData);
@@ -442,9 +448,16 @@ describe("spinx", () => {
       });
 
     it("Allows a joiner to join a coinflip", async () => {
+        const random = randomnessAccountAddress(force.toBuffer(), vrf.programId);
+        console.log("random:", random.toBase58())
+        console.log("force:", force.toBase58())
+        console.log("force data:", force.toBuffer())
+        console.log("VRF ID:", vrf.programId.toBase58())
+
         const globalDataAccount = await program.account.globalData.fetch(globalData);
         // Get a new timestamp for a fresh coinflip
         const pool_id = new BN(globalDataAccount.nextPoolId.toNumber() - 1);
+        console.log("Join Pool ID:", pool_id)
 
         // Find the coinflip PDA
         let [coinflipPool] = await PublicKey.findProgramAddressSync(
@@ -461,8 +474,6 @@ describe("spinx", () => {
             coinflipPool,
             true
         );
-
-        console.log("SPLESCROw: ", splEscrow.toBase58())
 
         try {
             console.log("Created a coinflip for ID:", pool_id.toString());            
@@ -484,17 +495,20 @@ describe("spinx", () => {
             );
 
             const tx = await joinerProgram.methods
-                .joinCoinflip(pool_id, joinerSetNumber, coinflipAmount)
+                .joinCoinflip(pool_id, [...force.toBuffer()], joinerSetNumber, coinflipAmount)
                 .accounts({
                     joiner: joinerKeypair.publicKey,
                     globalData: globalData,
                     joinerAta: joinerTokenAccount,
                     spinxMint: spinxMint,
                     coinflipPool: coinflipPool,
-                    creatorAta: creatorTokenAccount,
                     creator: creatorKeypair.publicKey,
                     solVault: solVault,
                     splEscrow: splEscrow,
+                    vrf: vrf.programId,
+                    config: networkStateAccountAddress(),
+                    treasury: new PublicKey("9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR"),
+                    random,
                     associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
@@ -529,45 +543,102 @@ describe("spinx", () => {
         }
     });
 
-      it("Sets a new fee", async () => {
-        const newFee = new BN(2000000); // 0.002 SOL
-        const newTreasuryWallet = creatorKeypair.publicKey; // Using the creator wallet as the new treasury for testing
+    it("Randomness fulfilled", async () => {
+        let randomnessFulfilled = await vrf.waitFulfilled(force.toBuffer())
+        console.log("Randomness is fulfilled, we can call the result function")
+    })
 
-        try {
-          // Get the current global data
-          const globalDataBefore = await program.account.globalData.fetch(globalData);
-          console.log("Current fee:", globalDataBefore.coinflipFee.toString());
-          console.log("Current treasury wallet:", globalDataBefore.treasuryWallet.toString());
+    it("Get the result", async () => {
+        const globalDataAccount = await program.account.globalData.fetch(globalData);
+        // Get a new timestamp for a fresh coinflip
+        const pool_id = new BN(32);
+        console.log("Get Result Pool ID:", pool_id.toString())
 
-          // Only proceed if the creator is the super admin
-          if (globalDataBefore.superAdmin.toString() !== creatorKeypair.publicKey.toString()) {
-            console.log("Skipping fee update test - creator is not the super admin");
-            return;
-          }
-          const wallet = provider.wallet.publicKey;
+        // Find the coinflip PDA
+        let [coinflipPool] = await PublicKey.findProgramAddressSync(
+            [
+                Buffer.from(COINFLIP_SEED),
+                pool_id.toArrayLike(Buffer, "le", 8),
+            ],
+            program.programId
+        );
 
-          const tx = await program.methods
-            .setFee(newFee, newTreasuryWallet)
-            .accounts({
-              admin: wallet,
-              globalData: globalData,
-            })
-            .rpc();
+        console.log("CoinflipPool: ", coinflipPool.toBase58())
 
-          console.log("Set fee transaction signature", tx);
+        // Find the SPL escrow account
+        const splEscrow = await getAssociatedTokenAddress(
+            spinxMint,
+            coinflipPool,
+            true
+        );
 
-          // Fetch the global data account
-          const globalDataAccount = await program.account.globalData.fetch(globalData);
+        console.log("splEscrow: ", splEscrow.toBase58())
 
-          // Verify the fee was updated correctly
-          assert.equal(globalDataAccount.coinflipFee.toString(), newFee.toString());
-          assert.equal(globalDataAccount.treasuryWallet.toString(), newTreasuryWallet.toString());
+        const coinflipData = await program.account.coinflipPool.fetch(coinflipPool)
 
-          console.log("Fee updated successfully to:", globalDataAccount.coinflipFee.toString());
-          console.log("Treasury wallet updated to:", globalDataAccount.treasuryWallet.toString());
-        } catch (error) {
-          console.error("Error setting fee:", error);
-          console.log("Skipping fee update test - creator might not be the super admin");
-        }
-      });
+        const random = randomnessAccountAddress(Buffer.from(coinflipData.force));
+        const treasury = new PublicKey("9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR");
+
+        console.log("Program account data: ", await program.account.coinflipPool.fetch(coinflipPool))
+    
+        const tx = await program.methods.resultCoinflip( pool_id, coinflipData.force).accounts({
+            coinflipPool: coinflipPool,
+            splEscrow: splEscrow,
+            spinxMint: spinxMint,
+            creatorAta: creatorTokenAccount,
+            joinerAta: joinerTokenAccount,
+            treasury: treasury,
+            random,
+            config: networkStateAccountAddress(),
+            vrf: vrf.programId,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+        }).rpc();
+    
+      
+        console.log(`CoinFlip {} is finished`, pool_id, tx)
+    
+      })
+
+    // it("Sets a new fee", async () => {
+    // const newFee = new BN(2000000); // 0.002 SOL
+    // const newTreasuryWallet = creatorKeypair.publicKey; // Using the creator wallet as the new treasury for testing
+
+    // try {
+    //     // Get the current global data
+    //     const globalDataBefore = await program.account.globalData.fetch(globalData);
+    //     console.log("Current fee:", globalDataBefore.coinflipFee.toString());
+    //     console.log("Current treasury wallet:", globalDataBefore.treasuryWallet.toString());
+
+    //     // Only proceed if the creator is the super admin
+    //     if (globalDataBefore.superAdmin.toString() !== creatorKeypair.publicKey.toString()) {
+    //     console.log("Skipping fee update test - creator is not the super admin");
+    //     return;
+    //     }
+    //     const wallet = provider.wallet.publicKey;
+
+    //     const tx = await program.methods
+    //     .setFee(newFee, newTreasuryWallet)
+    //     .accounts({
+    //         admin: wallet,
+    //         globalData: globalData,
+    //     })
+    //     .rpc();
+
+    //     console.log("Set fee transaction signature", tx);
+
+    //     // Fetch the global data account
+    //     const globalDataAccount = await program.account.globalData.fetch(globalData);
+
+    //     // Verify the fee was updated correctly
+    //     assert.equal(globalDataAccount.coinflipFee.toString(), newFee.toString());
+    //     assert.equal(globalDataAccount.treasuryWallet.toString(), newTreasuryWallet.toString());
+
+    //     console.log("Fee updated successfully to:", globalDataAccount.coinflipFee.toString());
+    //     console.log("Treasury wallet updated to:", globalDataAccount.treasuryWallet.toString());
+    // } catch (error) {
+    //     console.error("Error setting fee:", error);
+    //     console.log("Skipping fee update test - creator might not be the super admin");
+    // }
+    // });
 });
