@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
-    program::invoke
+    program::invoke, program::invoke_signed
 };
 
 pub const SPINX_TOKEN_ADDRESS: &str = "EY4wsByMUEudm4FRC2nTFfmiWFCMdhJx5j69ZTfQ8mz6";
@@ -22,5 +22,17 @@ pub fn sol_transfer_user<'a>(
 ) -> Result<()> {
     let ix = anchor_lang::solana_program::system_instruction::transfer(source.key, destination.key, amount);
     invoke(&ix, &[source, destination, system_program])?;
+    Ok(())
+}
+
+pub fn sol_transfer_with_signer<'a>(
+    source: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
+    signers: &[&[&[u8]]; 1],
+    amount: u64,
+) -> Result<()> {
+    let ix = anchor_lang::solana_program::system_instruction::transfer(source.key, destination.key, amount);
+    invoke_signed(&ix, &[source, destination, system_program], signers)?;
     Ok(())
 }

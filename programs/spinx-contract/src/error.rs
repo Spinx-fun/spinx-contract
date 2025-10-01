@@ -15,6 +15,12 @@ pub enum SpinXError {
     #[msg("Invalid Admin Address")]
     InvalidAdmin,
 
+    #[msg("Invalid Creator Address")]
+    InvalidCreator,
+
+    #[msg("Invalid Claim Status")]
+    InvalidClaimStatus,
+
     #[msg("Already Claimed Game")]
     AlreadyClaimed,
 
@@ -23,9 +29,6 @@ pub enum SpinXError {
 
     #[msg("The Account is Not Winner")]
     NotWinner,
-
-    #[msg("The Account is Not Referrer")]
-    NotReferrer,
 
     #[msg("Token not allowed")]
     TokenNotAllowed,
@@ -42,6 +45,9 @@ pub enum SpinXError {
     #[msg("Invalid Bet Number")]
     InvalidNumber,
 
+    #[msg("Amount is too small")]
+    AmountTooSmall,
+    
     // New errors for VRF integration
     #[msg("Challenge already taken")]
     ChallengeTaken,

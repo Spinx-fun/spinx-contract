@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-spinx_contract = "GjbMbmaKX8jB5TrH91AZ6xZwFPeq7fgPkZVDhjGcBUdd"
+spinx_contract = "6W1JspEray9RAnC7oVFa6fHwcSdt9XkWyd7MShFkvGKw"
 
 [registry]
 url = "https://api.apr.dev"

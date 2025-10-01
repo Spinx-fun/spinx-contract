@@ -20,7 +20,7 @@ use orao_solana_vrf::RANDOMNESS_ACCOUNT_SEED;
 
 // This is your program's public key and it will update
 // automatically when you build the project.
-declare_id!("GjbMbmaKX8jB5TrH91AZ6xZwFPeq7fgPkZVDhjGcBUdd");
+declare_id!("6W1JspEray9RAnC7oVFa6fHwcSdt9XkWyd7MShFkvGKw");
 
 #[program]
 pub mod spinx {
@@ -36,22 +36,26 @@ pub mod spinx {
         global_data.treasury_wallet = TREASURY_WALLET.parse::<Pubkey>().unwrap();
         global_data.spinx_token = SPINX_TOKEN_ADDRESS.parse::<Pubkey>().unwrap();
         global_data.coinflip_fee = COINFLIP_FEE;
+        global_data.min_amount = 10000000000;
         global_data.next_pool_id = 1; // Initialize the pool ID count
 
         Ok(())
     }
 
-    pub fn set_fee(ctx: Context<SetFee>, coinflip_fee: u64, treasury_wallet: Pubkey) -> Result<()> {
+    pub fn set_global_data(ctx: Context<SetGlobalData>, coinflip_fee: u64, treasury_wallet: Pubkey, min_amount: u64) -> Result<()> {
         let global_data = &mut ctx.accounts.global_data;
         global_data.coinflip_fee = coinflip_fee;
         global_data.treasury_wallet = treasury_wallet;
+        global_data.min_amount = min_amount;
 
         Ok(())
     }
 
-    pub fn create_coinflip(ctx: Context<CreateCoinflip>, set_number: u64, amount: u64) -> Result<()> {
+    pub fn create_coinflip(ctx: Context<CreateCoinflip>, set_number: u8, amount: u64) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
         let global_data = &mut ctx.accounts.global_data;
+
+        require!( amount > global_data.min_amount, SpinXError::AmountTooSmall);
         
         let fee = global_data.coinflip_fee;
 
@@ -92,7 +96,7 @@ pub mod spinx {
         Ok(())
     }
 
-    pub fn join_coinflip(ctx: Context<JoinCoinflip>, pool_id: u64, force: [u8; 32], set_number: u64, amount: u64) -> Result<()> {
+    pub fn join_coinflip(ctx: Context<JoinCoinflip>, pool_id: u64, force: [u8; 32], set_number: u8, amount: u64) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;        
         let global_data = &mut ctx.accounts.global_data;
         let fee = global_data.coinflip_fee;
@@ -142,6 +146,32 @@ pub mod spinx {
         Ok(())
     }
 
+    pub fn close_coinflip(ctx: Context<CloseCoinflip>, pool_id: u64) -> Result<()> {
+        let coinflip_pool = &mut ctx.accounts.coinflip_pool;        
+        
+        require!(coinflip_pool.creator_player == ctx.accounts.signer.key(), SpinXError::InvalidCreator);
+        require!(coinflip_pool.status == PoolStatus::Waiting, SpinXError::InvalidClaimStatus);
+
+        let seeds = &[
+                COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
+                &[coinflip_pool.bump],
+            ];
+        let signer = &[&seeds[..]]; 
+
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.spl_escrow.to_account_info(),
+            to: ctx.accounts.creator_ata.to_account_info(),
+            authority: coinflip_pool.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer);
+        token::transfer(cpi_ctx, coinflip_pool.creator_amount)?;  
+
+        coinflip_pool.status = PoolStatus::Closed;
+        coinflip_pool.pool_amount = 0;
+        Ok(())
+    }
+
     pub fn result_coinflip(ctx: Context<ResultCoinflip>, pool_id: u64, force: [u8; 32]) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
         let rand_acc = crate::misc::get_account_data(&ctx.accounts.random)?;
@@ -150,7 +180,7 @@ pub mod spinx {
         if randomness == 0 {
             return err!(SpinXError::StillProcessing)
         }
-        let result = randomness % 2;
+        let result = (randomness % 2) as u8;
 
         msg!("VRF result is: {}", randomness);
 
@@ -188,12 +218,35 @@ pub mod spinx {
         msg!("Coinflip game in room {} has concluded, the winner is {}", pool_id, coinflip_pool.winner.to_string());
 
         coinflip_pool.status = PoolStatus::Finished;
+        coinflip_pool.pool_amount = 0;
 
         Ok(())
     }
+
+    pub fn withdraw_fee(ctx: Context<WithdrawFee>, _sol_vault_bump: u8, _fee_amount: u64) -> Result<()> {        
+        let global_data = &mut ctx.accounts.global_data;
+        let sol_vault = &mut ctx.accounts.sol_vault;
+        
+        require!(global_data.super_admin == ctx.accounts.admin.key(), SpinXError::InvalidAdmin);
+
+        let seeds = &[
+            VAULT_SEED.as_bytes(),
+            &[_sol_vault_bump],
+        ];
+        let signer = &[&seeds[..]];
+
+        sol_transfer_with_signer(
+            ctx.accounts.sol_vault.to_account_info(),
+            ctx.accounts.treasury_wallet.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+            signer,
+            _fee_amount
+        )?;
+
+        Ok(())
+    }
+
 }
-
-
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -216,7 +269,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-pub struct SetFee <'info> {
+pub struct SetGlobalData <'info> {
     #[account(
         mut,
         constraint = 
@@ -420,4 +473,76 @@ pub struct ResultCoinflip<'info> {
     pub vrf: Program<'info, OraoVrf>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(pool_id: u64)]
+pub struct CloseCoinflip<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [COINFLIP_SEED.as_bytes(), pool_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub coinflip_pool: Account<'info, CoinflipPool>,
+
+    #[account(
+        mut,
+        associated_token::mint = spinx_mint,
+        associated_token::authority = coinflip_pool
+    )]
+    pub spl_escrow: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub spinx_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = spinx_mint,
+        associated_token::authority = coinflip_pool.creator_player
+    )]
+    pub creator_ata: Box<Account<'info, TokenAccount>>,
+
+    /// CHECK:` doc comment explaining why no checks through types are necessary.
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+
+#[derive(Accounts)]
+pub struct WithdrawFee<'info> {
+    #[account(
+        mut,
+        constraint = 
+            admin.key() == global_data.super_admin @ SpinXError::InvalidAdmin
+    )]
+    pub admin: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
+        bump
+    )]
+    pub global_data: Box<Account<'info, GlobalData>>,
+
+    #[account(
+        mut,
+        seeds = [VAULT_SEED.as_bytes()],
+        bump,
+    )]
+    /// CHECK: This is not dangerous because we don't read or write from this account
+    pub sol_vault: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        constraint = 
+        treasury_wallet.to_account_info().key() == global_data.treasury_wallet @ SpinXError::OwnerMismatch
+    )]
+    pub treasury_wallet: SystemAccount<'info>,
+    
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>
 }
