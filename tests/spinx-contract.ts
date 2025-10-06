@@ -9,6 +9,7 @@ import {
     Transaction,
     Connection,
     sendAndConfirmTransaction,
+    ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
     TOKEN_PROGRAM_ID,
@@ -32,9 +33,10 @@ import { networkStateAccountAddress, Orao, randomnessAccountAddress } from "@ora
 dotenv.config();
 
 describe("spinx", () => {
-    // Set up connection to Devnet
+    // Set up connection - can be configured via environment
+    const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
     const connection = new Connection(
-        "https://api.devnet.solana.com",
+        RPC_URL,
         "confirmed"
     );
 
@@ -92,7 +94,6 @@ describe("spinx", () => {
 
     // Test accounts
     let globalData: PublicKey;
-    let solVault: PublicKey;
     let spinxMint: PublicKey;
     let creatorTokenAccount: PublicKey;
     let joinerTokenAccount: PublicKey;
@@ -102,7 +103,6 @@ describe("spinx", () => {
 
     // PDAs
     let globalDataBump: number;
-    let solVaultBump: number;
 
     // Test data
     const coinflipAmount = new BN(10_000_000_000); // 1 token (smaller amount for testing)
@@ -135,15 +135,7 @@ describe("spinx", () => {
         globalData = globalDataPda;
         globalDataBump = globalDataBumpVal;
 
-        const [solVaultPda, solVaultBumpVal] = await PublicKey.findProgramAddressSync(
-            [Buffer.from(VAULT_SEED)],
-            program.programId
-        );
-        solVault = solVaultPda;
-        solVaultBump = solVaultBumpVal;
-
         console.log("Global Data PDA:", globalData.toString());
-        console.log("SOL Vault PDA:", solVault.toString());
 
         // Check if we need to airdrop SOL to the joiner
         if (!process.env.JOINER_PRIVATE_KEY) {
@@ -347,12 +339,16 @@ describe("spinx", () => {
                     creatorAta: creatorTokenAccount,
                     spinxMint: spinxMint,
                     coinflipPool: coinflipPool,
-                    solVault: solVault,
+                    treasuryWallet: new PublicKey(TREASURY_WALLET),
                     splEscrow: splEscrow,
                     associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                 })
+                .preInstructions([
+                    ComputeBudgetProgram.setComputeUnitLimit({ units: 300000 }),
+                    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
+                ])
                 .rpc();
 
             console.log("Create coinflip transaction signature", tx);
@@ -465,13 +461,17 @@ describe("spinx", () => {
                     creatorAta: creatorTokenAccount,
                     spinxMint: spinxMint,
                     coinflipPool: coinflipPool,
-                    solVault: solVault,
+                    treasuryWallet: new PublicKey(TREASURY_WALLET),
                     tokenAccount: creatorTokenAccount,
                     splEscrow: splEscrow,
                     associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                 })
+                .preInstructions([
+                    ComputeBudgetProgram.setComputeUnitLimit({ units: 300000 }),
+                    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
+                ])
                 .rpc();
 
             console.log("Create second coinflip transaction signature", tx);
@@ -551,8 +551,7 @@ describe("spinx", () => {
                     joinerAta: joinerTokenAccount,
                     spinxMint: spinxMint,
                     coinflipPool: coinflipPool,
-                    creator: creatorKeypair.publicKey,
-                    solVault: solVault,
+                    treasuryWallet: new PublicKey(TREASURY_WALLET),
                     splEscrow: splEscrow,
                     vrf: vrf.programId,
                     config: networkStateAccountAddress(),
@@ -562,6 +561,10 @@ describe("spinx", () => {
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                 })
+                .preInstructions([
+                    ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
+                    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
+                ])
                 .rpc();
 
             console.log("Join coinflip transaction signature", tx);
@@ -642,7 +645,12 @@ describe("spinx", () => {
             vrf: vrf.programId,
             systemProgram: SystemProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
-        }).rpc();
+        })
+        .preInstructions([
+            ComputeBudgetProgram.setComputeUnitLimit({ units: 350000 }),
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
+        ])
+        .rpc();
 
 
         console.log(`CoinFlip {} is finished`, pool_id, tx)
@@ -692,37 +700,4 @@ describe("spinx", () => {
         }
     });
 
-    it("Withdraw a fee", async () => {
-        const feeAmount = new BN(2000000); // 0.002 SOL
-
-        try {
-            // Get the current global data
-            const globalDataInfo = await program.account.globalData.fetch(globalData);
-
-            // Only proceed if the creator is the super admin
-            if (globalDataInfo.superAdmin.toString() !== creatorKeypair.publicKey.toString()) {
-                console.log("Skipping fee update test - creator is not the super admin");
-                return;
-            }
-            const wallet = provider.wallet.publicKey;
-
-            const tx = await program.methods
-                .withdrawFee(solVaultBump, feeAmount)
-                .accounts({
-                    admin: wallet,
-                    globalData: globalData,
-                    solVault: solVault,
-                    treasuryWallet: globalDataInfo.treasuryWallet,
-                    systemProgram: SystemProgram.programId,
-                    tokenProgram: TOKEN_PROGRAM_ID
-                })
-                .rpc();
-
-            console.log("Withdraw transaction signature", tx);
-
-        } catch (error) {
-            console.error("Error withdrawing fee:", error);
-            console.log("Skipping fee update test - creator might not be the super admin");
-        }
-    });
 });

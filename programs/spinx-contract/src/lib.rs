@@ -59,10 +59,10 @@ pub mod spinx {
         
         let fee = global_data.coinflip_fee;
 
-        // Transfer fee to sol_vault
+        // Transfer fee directly to treasury
         sol_transfer_user(
             ctx.accounts.creator.to_account_info().clone(), 
-            ctx.accounts.sol_vault.to_account_info().clone(), 
+            ctx.accounts.treasury_wallet.to_account_info().clone(), 
             ctx.accounts.system_program.to_account_info().clone(), 
             fee
         )?;
@@ -114,10 +114,10 @@ pub mod spinx {
         let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
         token::transfer(cpi_ctx, amount)?;
 
-        // Transfer fee to Treasury
+        // Transfer fee directly to treasury
         sol_transfer_user(
             ctx.accounts.joiner.to_account_info().clone(), 
-            ctx.accounts.sol_vault.to_account_info().clone(), 
+            ctx.accounts.treasury_wallet.to_account_info().clone(), 
             ctx.accounts.system_program.to_account_info().clone(), 
             fee
         )?;
@@ -223,28 +223,6 @@ pub mod spinx {
         Ok(())
     }
 
-    pub fn withdraw_fee(ctx: Context<WithdrawFee>, _sol_vault_bump: u8, _fee_amount: u64) -> Result<()> {        
-        let global_data = &mut ctx.accounts.global_data;
-        let sol_vault = &mut ctx.accounts.sol_vault;
-        
-        require!(global_data.super_admin == ctx.accounts.admin.key(), SpinXError::InvalidAdmin);
-
-        let seeds = &[
-            VAULT_SEED.as_bytes(),
-            &[_sol_vault_bump],
-        ];
-        let signer = &[&seeds[..]];
-
-        sol_transfer_with_signer(
-            ctx.accounts.sol_vault.to_account_info(),
-            ctx.accounts.treasury_wallet.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-            signer,
-            _fee_amount
-        )?;
-
-        Ok(())
-    }
 
 }
 
@@ -320,11 +298,10 @@ pub struct CreateCoinflip<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_SEED.as_bytes()],
-        bump,
+        constraint = 
+            treasury_wallet.key() == global_data.treasury_wallet @ SpinXError::OwnerMismatch
     )]
-    /// CHECK: This is not dangerous because we don't read or write from this account
-    pub sol_vault: AccountInfo<'info>,
+    pub treasury_wallet: SystemAccount<'info>,
 
     #[account(
         init,
@@ -376,11 +353,10 @@ pub struct JoinCoinflip<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_SEED.as_bytes()],
-        bump,
+        constraint = 
+            treasury_wallet.key() == global_data.treasury_wallet @ SpinXError::OwnerMismatch
     )]
-    /// CHECK: This is not dangerous because we don't read or write from this account
-    pub sol_vault: AccountInfo<'info>,
+    pub treasury_wallet: SystemAccount<'info>,
 
     #[account(
         mut,
@@ -509,40 +485,4 @@ pub struct CloseCoinflip<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-}
-
-
-#[derive(Accounts)]
-pub struct WithdrawFee<'info> {
-    #[account(
-        mut,
-        constraint = 
-            admin.key() == global_data.super_admin @ SpinXError::InvalidAdmin
-    )]
-    pub admin: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
-        bump
-    )]
-    pub global_data: Box<Account<'info, GlobalData>>,
-
-    #[account(
-        mut,
-        seeds = [VAULT_SEED.as_bytes()],
-        bump,
-    )]
-    /// CHECK: This is not dangerous because we don't read or write from this account
-    pub sol_vault: AccountInfo<'info>,
-
-    #[account(
-        mut,
-        constraint = 
-        treasury_wallet.to_account_info().key() == global_data.treasury_wallet @ SpinXError::OwnerMismatch
-    )]
-    pub treasury_wallet: SystemAccount<'info>,
-    
-    pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>
 }
