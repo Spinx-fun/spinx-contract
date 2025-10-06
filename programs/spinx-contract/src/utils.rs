@@ -3,9 +3,9 @@ use anchor_lang::solana_program::{
     program::invoke, program::invoke_signed
 };
 
-pub const SPINX_TOKEN_ADDRESS: &str = "EY4wsByMUEudm4FRC2nTFfmiWFCMdhJx5j69ZTfQ8mz6";
-pub const TREASURY_WALLET: &str = "EAoVpYvC3jNp1F9nym6KGXWGvyBw3PpNKWY4Dd3D8aao";
-pub const COINFLIP_FEE: u64 = 1000000;
+pub const SPINX_TOKEN_ADDRESS: &str = "4QAuuGj2mMjEPwsX61Sx9gwfNLcKVPotSWV3vUZfv28g";
+pub const TREASURY_WALLET: &str = "69QQYnDRZ386bbuMV7srfgh4D5dAR51SdyZ1wWtC3CKs";
+pub const COINFLIP_FEE: u64 = 5000000;
 pub const GLOBAL_AUTHORITY_SEED: &str = "global-authority";
 pub const VAULT_SEED: &str = "vault-authority";
 pub const GAME_SEED: &str = "game-authority";

@@ -4,7 +4,9 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "test": "anchor test",
-    "onlytest": "anchor test --skip-deploy"
+    "onlytest": "anchor test --skip-deploy",
+    "create-pool": "ts-node scripts/create-coinflip.ts",
+    "join-pool": "ts-node scripts/join-coinflip.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

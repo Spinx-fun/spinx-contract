@@ -148,7 +148,7 @@ async function createCoinflip() {
 
         // Use the treasury wallet from global data
         const treasuryWallet = globalDataAccount.treasuryWallet;
-        console.log("🏦 Using Treasury Wallet:", treasuryWallet.toString());
+        console.log("🏦 Using Treasury Wallet:", globalDataAccount, treasuryWallet.toString());
 
         // Create the coinflip transaction
         const tx = await program.methods

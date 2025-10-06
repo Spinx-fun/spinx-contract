@@ -34,7 +34,7 @@ dotenv.config();
 
 describe("spinx", () => {
     // Set up connection - can be configured via environment
-    const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
+    const RPC_URL = process.env.RPC_URL || "https://seka-yz7kcm-fast-devnet.helius-rpc.com";
     const connection = new Connection(
         RPC_URL,
         "confirmed"
@@ -88,8 +88,8 @@ describe("spinx", () => {
     const RANDOM_SEED = "random-seed";
 
     // Use the actual token address from the contract // Belle
-    const SPINX_TOKEN_ADDRESS = "EY4wsByMUEudm4FRC2nTFfmiWFCMdhJx5j69ZTfQ8mz6";
-    const TREASURY_WALLET = "EAoVpYvC3jNp1F9nym6KGXWGvyBw3PpNKWY4Dd3D8aao";
+    const SPINX_TOKEN_ADDRESS = "4QAuuGj2mMjEPwsX61Sx9gwfNLcKVPotSWV3vUZfv28g";
+    const TREASURY_WALLET = "69QQYnDRZ386bbuMV7srfgh4D5dAR51SdyZ1wWtC3CKs";
     const COINFLIP_FEE = 1000000;
 
     // Test accounts
@@ -658,9 +658,9 @@ describe("spinx", () => {
     })
 
     it("Sets a new fee", async () => {
-        const newFee = new BN(2000000); // 0.002 SOL
+        const newFee = new BN(5000000); // 0.002 SOL
         const minAmount = new BN(1000000000); // 1 TOKEN
-        const newTreasuryWallet = creatorKeypair.publicKey; // Using the creator wallet as the new treasury for testing
+        const newTreasuryWallet = new PublicKey(TREASURY_WALLET); // Using the creator wallet as the new treasury for testing
 
         try {
             // Get the current global data

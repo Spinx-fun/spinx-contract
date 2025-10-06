@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Spinx } from "./target/types/spinx";
+import { Spinx } from "../target/types/spinx";
 import {
     Keypair,
     LAMPORTS_PER_SOL,
@@ -36,7 +36,7 @@ const JOINER_PRIVATE_KEY = process.env.JOINER_PRIVATE_KEY;
 // Join parameters
 const COINFLIP_AMOUNT = new BN(10_000_000_000); // 10 tokens (adjust as needed)
 const JOINER_SET_NUMBER = 0; // 0 for tails, 1 for heads (opposite of creator)
-const POOL_ID = 1; // Specify which pool to join (adjust as needed)
+const POOL_ID = 57; // Specify which pool to join (adjust as needed)
 
 async function joinCoinflip() {
     console.log("🎲 Starting coinflip join...");

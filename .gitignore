@@ -1,5 +1,7 @@
 .anchor
 .DS_Store
+.env
+.env.example
 target
 **/*.rs.bk
 node_modules
