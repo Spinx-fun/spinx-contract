@@ -20,7 +20,7 @@ use orao_solana_vrf::RANDOMNESS_ACCOUNT_SEED;
 
 // This is your program's public key and it will update
 // automatically when you build the project.
-declare_id!("6W1JspEray9RAnC7oVFa6fHwcSdt9XkWyd7MShFkvGKw");
+declare_id!("CK9bscEwv3uJRrtVFCaf55ascDR7ufgdk4udGsAWWbi8");
 
 #[program]
 pub mod spinx {
