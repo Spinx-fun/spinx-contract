@@ -18,6 +18,23 @@ use orao_solana_vrf::state::NetworkState;
 use orao_solana_vrf::CONFIG_ACCOUNT_SEED;
 use orao_solana_vrf::RANDOMNESS_ACCOUNT_SEED;
 
+#[cfg(not(feature = "no-entrypoint"))]
+use {solana_security_txt::security_txt};
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "SPINX",
+    project_url: "https://spinx.fun",
+    contacts: "email:support@spinx.fun",
+    policy: "https://spinx.fun",
+
+    // Optional Fields
+    preferred_languages: "en,de",
+    source_code: "https://github.com/Spinx-fun/spinx-contract",
+    source_release: "",
+    encryption: ""
+}
+
 // This is your program's public key and it will update
 // automatically when you build the project.
 declare_id!("CK9bscEwv3uJRrtVFCaf55ascDR7ufgdk4udGsAWWbi8");
@@ -55,7 +72,7 @@ pub mod spinx {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
         let global_data = &mut ctx.accounts.global_data;
 
-        require!( amount > global_data.min_amount, SpinXError::AmountTooSmall);
+        require!( amount >= global_data.min_amount, SpinXError::AmountTooSmall);
         
         let fee = global_data.coinflip_fee;
 
