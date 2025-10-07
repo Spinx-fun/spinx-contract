@@ -203,8 +203,7 @@ pub mod spinx {
 
         msg!("VRF result is: {}", randomness);
 
-        coinflip_pool.status = PoolStatus::Finished;
-        coinflip_pool.pool_amount = 0;
+        
 
         let seeds = &[
                 COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
@@ -237,6 +236,9 @@ pub mod spinx {
             token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;
         }
 
+        coinflip_pool.status = PoolStatus::Finished;
+        coinflip_pool.pool_amount = 0;
+        
         msg!("Coinflip game in room {} has concluded, the winner is {}", pool_id, coinflip_pool.winner.to_string());        
 
         Ok(())
