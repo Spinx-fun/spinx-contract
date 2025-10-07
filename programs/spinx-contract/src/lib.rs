@@ -192,10 +192,7 @@ pub mod spinx {
 
     pub fn result_coinflip(ctx: Context<ResultCoinflip>, pool_id: u64, force: [u8; 32]) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
-        let rand_acc = crate::misc::get_account_data(&ctx.accounts.random)?;
-        let payout_amount = coinflip_pool.pool_amount;
-        coinflip_pool.status = PoolStatus::Finished;
-        coinflip_pool.pool_amount = 0;
+        let rand_acc = crate::misc::get_account_data(&ctx.accounts.random)?;        
 
         require!(coinflip_pool.status == PoolStatus::Processing, SpinXError::InvalidPoolStatus);
 
@@ -223,7 +220,7 @@ pub mod spinx {
             };
             
             let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer);
-            token::transfer(cpi_ctx, payout_amount)?;   
+            token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;   
 
         } else { // Win Creator
             coinflip_pool.winner = coinflip_pool.creator_player;
@@ -235,10 +232,11 @@ pub mod spinx {
             };
 
             let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer);
-            token::transfer(cpi_ctx, payout_amount)?;
+            token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;
         }
 
-        
+        coinflip_pool.status = PoolStatus::Finished;
+        coinflip_pool.pool_amount = 0;
 
         msg!("Coinflip game in room {} has concluded, the winner is {}", pool_id, coinflip_pool.winner.to_string());        
 
