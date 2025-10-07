@@ -452,7 +452,8 @@ pub struct ResultCoinflip<'info> {
         mut,
         seeds = [RANDOMNESS_ACCOUNT_SEED, &force],
         bump,
-        seeds::program = orao_solana_vrf::ID
+        seeds::program = orao_solana_vrf::ID,
+        constraint = coinflip_pool.force == force @  SpinXError::OwnerMismatch
     )]
     pub random: AccountInfo<'info>,
 

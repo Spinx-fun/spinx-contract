@@ -21,6 +21,9 @@ pub enum SpinXError {
     #[msg("Invalid Claim Status")]
     InvalidClaimStatus,
 
+    #[msg("Invalid force")]
+    InvalidForce,
+
     #[msg("Already Claimed Game")]
     AlreadyClaimed,
 
