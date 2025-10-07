@@ -9,7 +9,7 @@ skip-lint = false
 spinx_contract = "6W1JspEray9RAnC7oVFa6fHwcSdt9XkWyd7MShFkvGKw"
 
 [programs.mainnet]
-spinx_contract = "6W1JspEray9RAnC7oVFa6fHwcSdt9XkWyd7MShFkvGKw"
+spinx_contract = "CK9bscEwv3uJRrtVFCaf55ascDR7ufgdk4udGsAWWbi8"
 
 [registry]
 url = "https://api.apr.dev"
