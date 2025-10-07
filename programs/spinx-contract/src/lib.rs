@@ -90,7 +90,7 @@ pub mod spinx {
             to: ctx.accounts.spl_escrow.to_account_info(),
             authority: ctx.accounts.creator.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(ctx.accounts.creator_ata.to_account_info(), cpi_accounts);
+        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
         token::transfer(cpi_ctx, amount)?;
 
         // Generate the random number
@@ -193,6 +193,8 @@ pub mod spinx {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
         let rand_acc = crate::misc::get_account_data(&ctx.accounts.random)?;
 
+        require!(coinflip_pool.status == PoolStatus::Processing, SpinXError::InvalidPoolStatus);
+
         let randomness = current_state(&rand_acc);
         if randomness == 0 {
             return err!(SpinXError::StillProcessing)
@@ -200,6 +202,9 @@ pub mod spinx {
         let result = (randomness % 2) as u8;
 
         msg!("VRF result is: {}", randomness);
+
+        coinflip_pool.status = PoolStatus::Finished;
+        coinflip_pool.pool_amount = 0;
 
         let seeds = &[
                 COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
@@ -232,10 +237,7 @@ pub mod spinx {
             token::transfer(cpi_ctx, coinflip_pool.pool_amount)?;
         }
 
-        msg!("Coinflip game in room {} has concluded, the winner is {}", pool_id, coinflip_pool.winner.to_string());
-
-        coinflip_pool.status = PoolStatus::Finished;
-        coinflip_pool.pool_amount = 0;
+        msg!("Coinflip game in room {} has concluded, the winner is {}", pool_id, coinflip_pool.winner.to_string());        
 
         Ok(())
     }

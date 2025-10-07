@@ -21,6 +21,9 @@ pub enum SpinXError {
     #[msg("Invalid Claim Status")]
     InvalidClaimStatus,
 
+    #[msg("Invalid Pool Status")]
+    InvalidPoolStatus,
+
     #[msg("Invalid force")]
     InvalidForce,
 
