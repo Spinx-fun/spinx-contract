@@ -108,6 +108,7 @@ pub mod spinx {
         coinflip_pool.creator_ata = ctx.accounts.creator_ata.key();
         coinflip_pool.creator_set_number = set_number;
         coinflip_pool.pool_amount = amount;
+        coinflip_pool.status = PoolStatus::Waiting;    
         coinflip_pool.bump = ctx.bumps.coinflip_pool;
 
         Ok(())
@@ -168,7 +169,7 @@ pub mod spinx {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;        
         
         require!(coinflip_pool.creator_player == ctx.accounts.signer.key(), SpinXError::InvalidCreator);
-        require!(coinflip_pool.status != PoolStatus::Waiting, SpinXError::InvalidClaimStatus);
+        require!(coinflip_pool.joiner_player == Pubkey::default(), SpinXError::InvalidClaimStatus);
 
         let seeds = &[
                 COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
