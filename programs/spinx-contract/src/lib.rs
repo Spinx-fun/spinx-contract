@@ -168,7 +168,7 @@ pub mod spinx {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;        
         
         require!(coinflip_pool.creator_player == ctx.accounts.signer.key(), SpinXError::InvalidCreator);
-        require!(coinflip_pool.status == PoolStatus::Waiting, SpinXError::InvalidClaimStatus);
+        require!(coinflip_pool.status != PoolStatus::Waiting, SpinXError::InvalidClaimStatus);
 
         let seeds = &[
                 COINFLIP_SEED.as_bytes(), &pool_id.to_le_bytes(),
