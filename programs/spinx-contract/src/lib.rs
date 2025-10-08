@@ -59,14 +59,6 @@ pub mod spinx {
         Ok(())
     }
 
-    pub fn set_global_data(ctx: Context<SetGlobalData>, coinflip_fee: u64, treasury_wallet: Pubkey, min_amount: u64) -> Result<()> {
-        let global_data = &mut ctx.accounts.global_data;
-        global_data.coinflip_fee = coinflip_fee;
-        global_data.treasury_wallet = treasury_wallet;
-        global_data.min_amount = min_amount;
-
-        Ok(())
-    }
 
     pub fn create_coinflip(ctx: Context<CreateCoinflip>, set_number: u8, amount: u64) -> Result<()> {
         let coinflip_pool = &mut ctx.accounts.coinflip_pool;
@@ -269,22 +261,6 @@ pub struct Initialize<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-#[derive(Accounts)]
-pub struct SetGlobalData <'info> {
-    #[account(
-        mut,
-        constraint = 
-            admin.key() == global_data.super_admin @ SpinXError::InvalidAdmin
-    )]
-    pub admin: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [GLOBAL_AUTHORITY_SEED.as_bytes()],
-        bump
-    )]
-    pub global_data: Box<Account<'info, GlobalData>>,
-}
 
 #[derive(Accounts)]
 pub struct CreateCoinflip<'info> {
