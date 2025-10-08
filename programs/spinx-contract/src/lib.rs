@@ -120,9 +120,11 @@ pub mod spinx {
         let fee = global_data.coinflip_fee;
         
         require!(coinflip_pool.winner == Pubkey::default(), SpinXError::AlreadyDrawn);
+        require!(coinflip_pool.joiner_player == Pubkey::default(), SpinXError::AlreadyJoined);
         require!(coinflip_pool.creator_player != ctx.accounts.joiner.key(), SpinXError::InvalidJoiner);
         require!(coinflip_pool.creator_set_number != set_number, SpinXError::InvalidNumber);
         require!(coinflip_pool.creator_amount == amount, SpinXError::InvalidAmount);
+        require!(set_number < 2, SpinXError::InvalidNumber); 
 
         // Transfer amount SPL token to spl_escrow
         let cpi_accounts = Transfer {

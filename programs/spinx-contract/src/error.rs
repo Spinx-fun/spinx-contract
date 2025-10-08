@@ -33,6 +33,9 @@ pub enum SpinXError {
     #[msg("Already Drawn Game")]
     AlreadyDrawn,
 
+    #[msg("Already Joined Game")]
+    AlreadyJoined,
+
     #[msg("The Account is Not Winner")]
     NotWinner,
 
